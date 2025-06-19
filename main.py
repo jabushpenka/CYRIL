@@ -1,22 +1,23 @@
-import logging
-
-from telegram import Update
+from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes, ConversationHandler
 from get_token import BOT_TOKEN
 from hashlib import sha256
 from database import CyrilDB
 
-CyrilDB = CyrilDB('db/cyril.db')
+#import vk_part
 
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
+CyrilDB = CyrilDB('db/cyril.db')
 
 TIMEZONE, GROUP_NAME, PASSWORD, CONFIRM = range(4)
 RESPONSE = 0
+yes_no_keyboard = [
+    ["да", "нет"],
+    ["отмена"]
+]
+yes_no_markup = ReplyKeyboardMarkup(yes_no_keyboard, one_time_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало использования бота"""
     chat_id_tg = update.effective_chat.id
     if not CyrilDB.chat_exists(1, chat_id_tg):
         await context.bot.send_message(chat_id=chat_id_tg,
@@ -54,6 +55,7 @@ async def group(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Продолжаем добавление группы - этап ЧАСОВОЙ ПОЯС"""
     text = update.message.text.replace('+', '')
     if text == "/cancel":
         await update.message.reply_text(
@@ -80,6 +82,7 @@ async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def group_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Продолжаем добавление группы - этап НАЗВАНИЕ"""
     name = update.message.text
     context.user_data["name"] = name
     await update.message.reply_text(
@@ -89,8 +92,8 @@ async def group_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     return PASSWORD
 
-
 async def group_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Продолжаем добавление группы - этап ПАРОЛЬ"""
     text = update.message.text
     name = context.user_data["name"]
     tz = context.user_data["timezone"]
@@ -103,22 +106,25 @@ async def group_password(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         context.user_data["pword"] = text
         await update.message.reply_text(
-            "по итогу будет группа \"{0}\", временная зона {1} пароль \'{2}\'\nДелаем? (да/нет)".format(name, tz,
+            "по итогу будет группа \"{0}\", временная зона {1} пароль \'{2}\'\nДелаем? (да/нет)\n/cancel чтобы отменить".format(name, tz,
                                                                                                          text),
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
+            reply_markup=yes_no_markup
         )
         return CONFIRM
 
 
 async def group_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if text == "/cancel" or text == "нет":
+    """Продолжаем добавление группы - этап ПОДТВЕРЖДЕНИЕ"""
+    text = update.message.text.lower()
+    if text == "/cancel" or text == "отмена" or text == "нет":
         await update.message.reply_text(
             "ладно, отменил, можете попробовать ещё раз",
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
+            reply_markup=ReplyKeyboardRemove()
         )
         return ConversationHandler.END
-    else:
+    elif text == "да":
         name = context.user_data["name"]
         tz = context.user_data["timezone"]
         pword = context.user_data["pword"]
@@ -131,11 +137,20 @@ async def group_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "чтобы подключить другой чат, напишите в нём /link {0} {2}\n"
             "рекомендую закрепить это сообщение а то мало ли потеряется".format(
                 group_id, name, pword),
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
+            reply_markup=ReplyKeyboardRemove()
         )
         return ConversationHandler.END
+    else:
+        await update.message.reply_text(
+            "я вас не понимаю, скажите по-простому да/нет\n/cancel чтобы отменить",
+            reply_to_message_id=update.message.id
+        )
+        return CONFIRM
+
 
 async def link(update: Update,context: ContextTypes.DEFAULT_TYPE):
+    """Подключение к существующей группе"""
     chat_id_tg = update.effective_chat.id
     if not CyrilDB.chat_exists(1, chat_id_tg):
         await context.bot.send_message(chat_id=chat_id_tg,
@@ -174,6 +189,7 @@ async def link(update: Update,context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Начало выхода из группы"""
     chat_id_tg = update.effective_chat.id
     if not CyrilDB.chat_exists(1, chat_id_tg):
         await context.bot.send_message(chat_id=chat_id_tg,
@@ -189,7 +205,8 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             "вы сейчас в группе {0}: \"{1}\"\nоткрепляемся? (да/нет)\n/cancel чтобы отменить".format(group_id,
                                                                                                      name),
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
+            reply_markup=yes_no_markup
         )
         return RESPONSE
     else:
@@ -199,11 +216,13 @@ async def remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
 async def response(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text.lower()
-    if text == "/cancel" or text == "нет":
+    """Продолжаем выход из группы - этап ПОДТВЕРЖДЕНИЕ"""
+    text = update.message.text
+    if text == "/cancel" or text == "отмена" or text == "нет":
         await update.message.reply_text(
             "ладно, остаёмся в группе",
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
+            reply_markup=ReplyKeyboardRemove()
         )
     elif text == "да":
         group_id = context.user_data["group_id"]
@@ -211,19 +230,21 @@ async def response(update: Update, context: ContextTypes.DEFAULT_TYPE):
         CyrilDB.unlink_chat(chat_id)
         await update.message.reply_text(
             "теперь у чата нет группы",
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
+            reply_markup=ReplyKeyboardRemove()
         )
         if not CyrilDB.group_has_chats(group_id):
             CyrilDB.remove_group(group_id)
     else:
         await update.message.reply_text(
             "я вас не понимаю, скажите по-простому да/нет\n/cancel чтобы отменить",
-            reply_to_message_id=update.message.id
+            reply_to_message_id=update.message.id,
         )
         return RESPONSE
     return ConversationHandler.END
 
 async def important(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Переслать сообщение в другие чаты"""
     if not update.message.reply_to_message:
         await update.message.reply_text(
             "используйте /share В ОТВЕТ на важное сообщение, чтобы я знал, что пересылать",
@@ -245,12 +266,13 @@ async def important(update: Update, context: ContextTypes.DEFAULT_TYPE):
     group_id = CyrilDB.get_group_id(chat_id)
     chats = CyrilDB.group_chats(group_id)
     current_chat = update.effective_chat.id
-    for chat in chats:
+    for chat in chats: # тут надо доделать чтобы он и в вк пересылал!!!!!!!!!!!!!!!!
         chat_id_in_messenger = chat[2]
         if not chat_id_in_messenger == current_chat:
             await context.bot.send_message(chat_id_in_messenger, text)
 
 async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Запись сообщения в базу данных"""
     chat_id_tg = update.effective_chat.id
     if not CyrilDB.chat_exists(1, chat_id_tg):
         await context.bot.send_message(chat_id=chat_id_tg,
@@ -259,19 +281,22 @@ async def message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         CyrilDB.add_chat(1, chat_id_tg)
     chat_id = CyrilDB.get_chat_id(1, update.effective_chat.id)
     CyrilDB.add_message(chat_id, update.message.id, update.message.text)
-    print("запись из чата ID {0} : {1} \"{2}\"".format(chat_id, update.message.id, update.message.text))
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Отмена действия (универсальная)"""
     await update.message.reply_text(
         "пон, в следующий раз значит",
-        reply_to_message_id=update.message.id
+        reply_to_message_id=update.message.id,
+        reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
 
 if __name__ == '__main__':
+    # начало сборки бота
     application = ApplicationBuilder().token(BOT_TOKEN).build()
 
+    # настройка держателей для команд
     start_handler = CommandHandler("start", start)
 
     group_handler = ConversationHandler(
@@ -282,7 +307,7 @@ if __name__ == '__main__':
             PASSWORD: [MessageHandler(filters.TEXT,group_password)],
             CONFIRM: [MessageHandler(filters.TEXT,group_confirm)]
         },
-        fallbacks=[CommandHandler("cancel", cancel)]
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     remove_handler = ConversationHandler(
@@ -290,7 +315,7 @@ if __name__ == '__main__':
         states={
             RESPONSE: [MessageHandler(filters.TEXT, response)]
         },
-        fallbacks=[CommandHandler("cancel", cancel)]
+        fallbacks=[CommandHandler("cancel", cancel)],
     )
 
     link_handler = CommandHandler("link", link)
@@ -299,6 +324,7 @@ if __name__ == '__main__':
 
     message_handler = MessageHandler(filters.TEXT, message)
 
+    # установка держателей
     application.add_handler(start_handler)
     application.add_handler(group_handler)
     application.add_handler(link_handler)
@@ -306,4 +332,5 @@ if __name__ == '__main__':
     application.add_handler(important_handler)
     application.add_handler(message_handler)
 
+    # запуск бота
     application.run_polling()
