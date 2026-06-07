@@ -1,8 +1,8 @@
 from classes.database import CyrilDB
+from classes.connections import ConnectionManager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-
 
 # сам апи
 app = FastAPI()
@@ -29,7 +29,7 @@ def pack(keys, list_of_tuples):
         list_of_tuples[index] = dict(zip(keys, value))
     return list_of_tuples
 
-# Получить пользователей (для дебага)
+# Получить чаты (для дебага)
 @app.get("/chats")
 def get_chats(skip: int = 0, limit: int = 10):
     table = "chats"
@@ -41,13 +41,13 @@ def get_groups(skip: int = 0, limit: int = 10):
     table = "groupps"
     return pack(db.columns(table), db.select(table, skip, limit))
 
-# Получить группы (для дебага)
+# Получить сообщения (для дебага)
 @app.get("/messages")
 def get_messages(skip: int = 0, limit: int = 10):
     table = "messages"
     return pack(db.columns(table), db.select(table, skip, limit))
 
-# Получить группы (для дебага)
+# Получить платформ (для дебага)
 @app.get("/platforms")
 def get_platforms(skip: int = 0, limit: int = 10):
     table = "platforms"
@@ -89,9 +89,13 @@ def chat_link(group_id : int, chat_id : int):
 def chat_unlink(chat_id : int):
     return db.chat_unlink(chat_id)
 
-def chat_get_messages(chat_id, skip: int = 0, limit: int = 10):
-    table = "messages"
-    return pack(table, db.chat_get_messages(chat_id, skip, limit))
+@app.get("/chat_get_messages", summary="получение сообщений из чата")
+def chat_get_messages(chat_id, skip: int = 0, limit: int = 50):
+    keys = ['message_id_in_chat','text','date']
+    res = db.chat_get_messages(chat_id, skip, limit)
+    for index, value in enumerate(res):
+        res[index] = dict(zip(keys, value))
+    return res
 
 # ОПЕРАЦИИ ДЛЯ ГРУПП
 # проверка существования группы
@@ -135,3 +139,39 @@ def group_check_hashkey(group_id : int, hashkey : str):
 @app.post("/message_add", description="не надо", summary="этого не будет НИКОГДА *раскаты грома*")
 def message_add(chat_id : int, message_id_in_chat : int, text : str):
     return db.message_add(chat_id, message_id_in_chat, text)
+
+
+# МЕНЕДЖЕР ВЕБСОКЕТОВ
+manager = ConnectionManager()
+
+# подключение websocket, рассылает сообщения всем подключениям из группы
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            data : dict = await websocket.receive_json()
+            action = data.get('action')
+            group_id = int(data.get('group_id'))
+            if action == "add":
+                manager.add_group(websocket, group_id)
+                continue
+            elif action == "remove":
+                manager.remove_group(websocket, group_id)
+                continue
+            else: continue
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+############ НЕ трогать
+
+import htmltest
+from fastapi.responses import HTMLResponse
+@app.get("/test")
+async def get():
+    return HTMLResponse(htmltest.html)
+
+from run_multibot import run
+@app.get('/',include_in_schema=False)
+async def root():
+    return await run()

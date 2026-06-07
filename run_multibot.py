@@ -1,23 +1,31 @@
 # для переменных окружения
 import os
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # здесь лучше перейти в файлы и почитать
 from parts import max_part, vk_part
 from classes.multibot import Multibot
+from api import manager
+
+# создание экземпляра
+multibot = Multibot()
 
 async def run():
-    # создание экземпляров ботов
-    maxbot = max_part.MAX(os.getenv("MAXTOKEN"))
-    vkbot = vk_part.VK(os.getenv("VKTOKEN"))
+    if not multibot.running:
+        # создание экземпляров ботов
+        maxbot = max_part.MAX(os.getenv("MAXTOKEN"))
+        vkbot = vk_part.VK(os.getenv("VKTOKEN"))
 
-    # создание экземпляра
-    multibot = Multibot()
+        # добавление менеджера подключений (для рассылок по websocket)
+        multibot.add_manager(manager)
 
-    # передача управления ботами
-    multibot.add_max(maxbot)
-    multibot.add_vk(vkbot)
+        # передача управления ботами
+        multibot.add_max(maxbot)
+        multibot.add_vk(vkbot)
 
-    # запуск
-    await multibot.run_polling()
+        # запуск
+        return await multibot.run_polling()
+    else:
+        return 'он уже бегает, не парься приятель'
