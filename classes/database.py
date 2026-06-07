@@ -62,7 +62,8 @@ class CyrilDB:
             print()
             return bool(len(result))
         except Exception as e:
-            return e
+            print(e)
+            return False
 
     def chat_get_group_id(self, chat_id):
         """Достаём ID группы, к которой привязан чат"""
@@ -75,9 +76,9 @@ class CyrilDB:
             return e
 
     def chat_get_messages(self, chat_id, skip: int = 0, limit: int = 10):
-        """Выбораем из произвольной таблицы"""
+        """Получаем из чата сообщения"""
         try:
-            self.cur.execute(f"SELECT * FROM messages WHERE chat_id = %s OFFSET %s LIMIT %s;",
+            self.cur.execute(f"SELECT message_id_in_chat,text,date FROM messages WHERE chat_id = %s OFFSET %s LIMIT %s;",
                              (chat_id, skip, limit))
             result = self.cur.fetchall()
             return result
@@ -169,7 +170,8 @@ class CyrilDB:
             result = self.cur.fetchall()
             return bool(len(result))
         except Exception as e:
-            return e
+            print(e)
+            return False
 
     # ОПЕРАЦИИ ДЛЯ СООБЩЕНИЙ (messages)
     def message_add(self, chat_id, message_id_in_chat, text):

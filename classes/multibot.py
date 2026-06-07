@@ -1,47 +1,64 @@
 import asyncio
+import datetime
+import json
 from hashlib import sha256
 
 from classes.MyUpdate import MyUpdate
 from classes.database import CyrilDB
-from parts import max_part, vk_part
-
+from classes.connections import ConnectionManager
+from parts.max_part import MAX
+from parts.vk_part import VK
 
 # мастер-класс, реализующий логику (универсальную для всех ботов)
 class Multibot:
     def __init__(self):
         self.db = CyrilDB()
-        self.maxBot = None
-        self.vkBot = None
+        self.manager : ConnectionManager = ConnectionManager()
+        self.maxBot : MAX = None
+        self.vkBot : VK = None
+        self.running : bool = False
+
+    def add_manager(self, manager : ConnectionManager):
+        self.manager = manager
 
     # указатель на бот (MAX)
-    def add_max(self, maxbot : max_part.MAX):
+    def add_max(self, maxbot : MAX):
         self.maxBot = maxbot
 
     # указатель на бот (VK)
-    def add_vk(self, vkbot : vk_part.VK):
+    def add_vk(self, vkbot : VK):
         self.vkBot = vkbot
 
     # запуск бота (MAX)
     async def run_max(self):
-        while True:
+        while self.running:
             batch = await self.maxBot.poll()
             for upd in batch:
                 await self.handle(upd)
+        return
 
     # запуск бота (MAX)
     async def run_vk(self):
-        while True:
+        while self.running:
             batch = await self.vkBot.poll()
             for upd in batch:
                 await self.handle(upd)
+        return
 
     # запуск сразу всех ботов (асинхронно)
     async def run_polling(self):
-        task_max = asyncio.create_task(self.run_max())
-        task_vk = asyncio.create_task(self.run_vk())
+        if not self.running:
+            task_max = asyncio.create_task(self.run_max())
+            task_vk = asyncio.create_task(self.run_vk())
 
-        await task_max
-        await task_vk
+            self.running = True
+
+            await task_max
+            await task_vk
+
+            self.running = False
+            return
+        else: return
 
     # отправка сообщения при помощи одного из ботов
     async def send_message(self, messenger_id, chat_id_in_messenger, text):
@@ -61,13 +78,19 @@ class Multibot:
         if upd.text.startswith("/"):
             prefix = upd.text.split(' ')[0]
             await self.handle_command(prefix,upd)
-            return
 
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
         message_id_in_chat = upd.message_id_in_chat
-        return self.db.message_add(chat_id, message_id_in_chat, upd.text)
 
-    # обработчик команд, (огромный, поэтому TODO: реализовать через декораторы или вынести)
+        self.db.message_add(chat_id, message_id_in_chat, upd.text)
+
+        # рассылка сообщений всем, у кого открыт сайт
+        group_id = self.db.chat_get_group_id(chat_id)
+        data = {"chat_id": chat_id, "text": upd.text, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        await self.manager.broadcast(group_id, json.dumps(data))
+        return
+
+    # обработчик команд, TODO: (слишком огромный, реализовать через декораторы)
     async def handle_command(self, cmd: str, upd : MyUpdate):
         messenger_id = upd.messenger_id
         chat_id_in_messenger = upd.chat_id_in_messenger
@@ -79,7 +102,7 @@ class Multibot:
 
         # логика создания группы
         if cmd == "/group":
-            if self.db.chat_has_group(chat_id) == True:
+            if self.db.chat_has_group(chat_id):
                 group_id = self.db.chat_get_group_id(chat_id)
                 group_name = self.db.group_get_name(group_id)
                 await self.send_message(messenger_id,chat_id_in_messenger,f"чат уже в группе {group_name}")
@@ -97,6 +120,8 @@ class Multibot:
             await self.send_message(messenger_id, chat_id_in_messenger, f"готово, теперь в другом чате используйте\n"
                                                                         f"/link {group_id} {pword}\n"
                                                                         f"чтобы подключить его к группе \"{group_name}\"")
+
+
         # логика подключения чата к группе
         elif cmd == "/link":
             if len(split) != 3:
@@ -107,26 +132,31 @@ class Multibot:
             pword = split[2]
             hashkey = sha256(pword.encode()).hexdigest()
 
-            if self.db.group_check_hashkey(group_id,hashkey) == True:
+            if self.db.group_check_hashkey(group_id,hashkey):
                 self.db.chat_link(group_id, chat_id)
                 group_name = self.db.group_get_name(group_id)
                 await self.send_message(messenger_id, chat_id_in_messenger,f"теперь вы в группе {group_name}")
             else:
                 await self.send_message(messenger_id, chat_id_in_messenger, f"не верные данные")
+
+
         # логика отключения чата от группы
         elif cmd == "/unlink":
             self.db.chat_unlink(chat_id)
             await self.send_message(messenger_id, chat_id_in_messenger, f"теперь вы не в группе")
+
+
         # логика рассылки сообщений (НА ВСЕ МЕССЕНДЖЕРЫ!!! 🥳🥳🥳)
         elif cmd == "/share":
-            if self.db.chat_has_group(chat_id) == True:
+            if self.db.chat_has_group(chat_id):
                 group_id = self.db.chat_get_group_id(chat_id)
                 t = text.removeprefix("/share")
                 await self.share(chat_id, group_id, t)
                 return
 
+
     # обработчик рассылки сообщений
-    async def share(self, init_chat_id, group_id, message):
+    async def share(self, init_chat_id : int | None, group_id, message):
         chats = self.db.group_get_chats(group_id)
         for chat in chats:
             chat_id = chat[0]
