@@ -17,7 +17,7 @@ class MAX:
 
             for update in updates['updates']:
                 chat_id = update['message']['recipient']['chat_id']
-                message_id_in_chat = await self.count_messages(chat_id)
+                message_id_in_chat = update['message']['body']['seq']
                 text = update['message']['body']['text']
                 #print("max: ",chat_id,text)
                 result.append(MyUpdate(self.messenger_id, chat_id, message_id_in_chat, text))
@@ -26,11 +26,6 @@ class MAX:
         except Exception as e:
             print("ошибка:",e)
             return result
-
-    # подсчёт количества сообщений в чате
-    async def count_messages(self, chat_id):
-        messages = await self.bot.get_messages(chat_id)
-        return len(messages.messages)
 
     # отправка сообщения в чат (МАХ)
     async def send_message(self, chat_id, text):
