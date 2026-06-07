@@ -1,1 +1,0 @@
-BOT_TOKEN = open("token.txt","r").readline()
