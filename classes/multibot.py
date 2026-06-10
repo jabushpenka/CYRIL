@@ -12,13 +12,16 @@ from parts.vk_part import VK
 # мастер-класс, реализующий логику (универсальную для всех ботов)
 class Multibot:
     def __init__(self):
-        self.db = CyrilDB()
+        self.db : CyrilDB = CyrilDB()
         self.manager : ConnectionManager = ConnectionManager()
         self.maxBot : MAX = None
         self.vkBot : VK = None
         self.running : bool = False
 
-    def add_manager(self, manager : ConnectionManager):
+    def set_database(self, db : CyrilDB):
+        self.db = db
+
+    def set_manager(self, manager : ConnectionManager):
         self.manager = manager
 
     # указатель на бот (MAX)
@@ -81,14 +84,16 @@ class Multibot:
 
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
         message_id_in_chat = upd.message_id_in_chat
+        text = upd.text
 
-        self.db.message_add(chat_id, message_id_in_chat, upd.text)
+        self.db.message_add(chat_id, message_id_in_chat, text)
 
-        # рассылка сообщений всем, у кого открыт сайт
-        group_id = self.db.chat_get_group_id(chat_id)
-        data = {"chat_id": chat_id, "text": upd.text, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-        await self.manager.broadcast(group_id, json.dumps(data))
-        return
+        # рассылка сообщения по группе (на веб)
+        if self.db.chat_has_group(chat_id):
+            group_id = self.db.chat_get_group_id(chat_id)
+            data = {"chat_id": chat_id, "text": text, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            await self.manager.broadcast(group_id, json.dumps(data))
+            return
 
     # обработчик команд, TODO: (слишком огромный, реализовать через декораторы)
     async def handle_command(self, cmd: str, upd : MyUpdate):
@@ -100,12 +105,14 @@ class Multibot:
 
         split = text.split()
 
-        # логика создания группы
+
+        ### логика создания группы
         if cmd == "/group":
             if self.db.chat_has_group(chat_id):
                 group_id = self.db.chat_get_group_id(chat_id)
                 group_name = self.db.group_get_name(group_id)
-                await self.send_message(messenger_id,chat_id_in_messenger,f"чат уже в группе {group_name}")
+                group_id = self.db.chat_get_group_id(chat_id)
+                await self.send_message(messenger_id, chat_id_in_messenger,f"чат уже в группе {group_id} - {group_name}")
                 return
 
             if len(split) != 3:
@@ -122,7 +129,7 @@ class Multibot:
                                                                         f"чтобы подключить его к группе \"{group_name}\"")
 
 
-        # логика подключения чата к группе
+        ### логика подключения чата к группе
         elif cmd == "/link":
             if len(split) != 3:
                 await self.send_message(messenger_id,chat_id_in_messenger,"формат /link [ID] [пароль]")
@@ -142,8 +149,11 @@ class Multibot:
 
         # логика отключения чата от группы
         elif cmd == "/unlink":
+            if not self.db.chat_has_group(chat_id):
+                await self.send_message(messenger_id, chat_id_in_messenger,f"чат не в группе")
+                return
             self.db.chat_unlink(chat_id)
-            await self.send_message(messenger_id, chat_id_in_messenger, f"теперь вы не в группе")
+            await self.send_message(messenger_id, chat_id_in_messenger, f"теперь чат не в группе")
 
 
         # логика рассылки сообщений (НА ВСЕ МЕССЕНДЖЕРЫ!!! 🥳🥳🥳)
