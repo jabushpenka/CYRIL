@@ -65,7 +65,7 @@ def chat_get_id(messenger_id : int, chat_id_in_messenger : int):
     return db.chat_get_id(messenger_id, chat_id_in_messenger)
 
 # добавление нового чата в базу
-@app.post("/chat_add", summary="НЕ делай это")
+@app.post("/chat_add", summary="добавление нового чата в базу")
 def chat_add(messenger_id : int, chat_id_in_messenger : int):
     return db.chat_add(messenger_id, chat_id_in_messenger)
 
@@ -80,12 +80,12 @@ def chat_get_group_id(chat_id : int):
     return db.chat_get_group_id(chat_id)
 
 # присоединение чата к группе
-@app.put("/chat_link", summary="НЕ делай это")
+@app.put("/chat_link", summary="присоединение чата к группе")
 def chat_link(group_id : int, chat_id : int):
     return db.chat_link(group_id, chat_id)
 
 # отсоединение чата от группы
-@app.put("/chat_unlink", summary="НЕ делай это")
+@app.put("/chat_unlink", summary="отсоединение чата от группы")
 def chat_unlink(chat_id : int):
     return db.chat_unlink(chat_id)
 
@@ -109,7 +109,7 @@ def group_get_name(group_id : int):
     return db.group_get_name(group_id)
 
 # добавление группы
-@app.post("/group_add", summary="НЕ делай это")
+@app.post("/group_add", summary="добавление группы")
 def group_add(name : str, hashkey : str):
     return db.group_add(name, hashkey)
 
@@ -125,7 +125,7 @@ def group_get_chats(group_id : int):
     return pack(db.columns(table), db.group_get_chats(group_id))
 
 # удаление группы
-@app.delete("/group_remove", summary="НЕ делай это")
+@app.delete("/group_remove", summary="удаление группы")
 def group_remove(group_id : int):
     return db.group_remove(group_id)
 
@@ -151,8 +151,16 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data : dict = await websocket.receive_json()
+
+            try:
+                int(data.get('group_id'))
+            except ValueError as e:
+                print(e)
+                continue
+
             action = data.get('action')
             group_id = int(data.get('group_id'))
+
             if action == "add":
                 manager.add_group(websocket, group_id)
                 continue
@@ -165,12 +173,14 @@ async def websocket_endpoint(websocket: WebSocket):
 
 ############ НЕ трогать
 
+# HTML для проверки websocket (см htmltest.py)
 import htmltest
 from fastapi.responses import HTMLResponse
 @app.get("/test")
 async def get():
     return HTMLResponse(htmltest.html)
 
+# запуск ботов через запрос в корень
 from run_multibot import run
 @app.get('/',include_in_schema=False)
 async def root():
