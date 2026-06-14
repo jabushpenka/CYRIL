@@ -11,6 +11,7 @@ SECRETKEY = os.getenv("SECRETKEY")
 from classes.MyUpdate import MyUpdate
 from classes.database import CyrilDB
 from classes.connections import ConnectionManager
+from classes.summarizer import Summarizer
 from parts.max_part import MAX
 from parts.vk_part import VK
 
@@ -19,6 +20,7 @@ class Multibot:
     def __init__(self):
         self.db : CyrilDB = CyrilDB()
         self.manager : ConnectionManager = ConnectionManager()
+        self.summarizer : Summarizer = Summarizer()
         self.maxBot : MAX = None
         self.vkBot : VK = None
         self.running : bool = False
@@ -86,6 +88,7 @@ class Multibot:
         if upd.text.startswith("/"):
             prefix = upd.text.split(' ')[0]
             await self.handle_command(prefix,upd)
+            return
 
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
         message_id_in_chat = upd.message_id_in_chat
@@ -179,6 +182,11 @@ class Multibot:
                 return
 
 
+        elif cmd == "/summarize":
+            summary = self.summarize(chat_id)
+            await self.send_message(messenger_id, chat_id_in_messenger, summary)
+
+
     # обработчик рассылки сообщений
     async def share(self, init_chat_id : int | None, group_id, message):
         chats = self.db.group_get_chats(group_id)
@@ -195,3 +203,13 @@ class Multibot:
             elif messenger_id == 2:
                 await self.vkBot.send_message(chat_id_in_messenger, message)
         return
+
+    def summarize(self, chat_id : int):
+        raw = self.db.digest(chat_id)
+
+        messages : list[str] = []
+        for msg in raw:
+            messages.append(f"{msg[0]}: {msg[1]}")
+
+        daily = self.summarizer.summarize_to_single_sentence(messages)
+        return daily
