@@ -3,6 +3,11 @@ import datetime
 import json
 from hashlib import sha256
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+SECRETKEY = os.getenv("SECRETKEY")
+
 from classes.MyUpdate import MyUpdate
 from classes.database import CyrilDB
 from classes.connections import ConnectionManager
@@ -85,8 +90,9 @@ class Multibot:
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
         message_id_in_chat = upd.message_id_in_chat
         text = upd.text
+        fromuser = upd.fromuser
 
-        self.db.message_add(chat_id, message_id_in_chat, text)
+        self.db.message_add(chat_id, message_id_in_chat, text, fromuser)
 
         # рассылка сообщения по группе (на веб)
         if self.db.chat_has_group(chat_id):
@@ -100,6 +106,7 @@ class Multibot:
         messenger_id = upd.messenger_id
         chat_id_in_messenger = upd.chat_id_in_messenger
         text = upd.text
+        fromuser = upd.fromuser
 
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
 
@@ -121,12 +128,19 @@ class Multibot:
 
             group_name = split[1]
             pword = split[2]
-            group_hashkey = sha256(pword.encode()).hexdigest()
-            group_id = self.db.group_add(group_name, group_hashkey)
+            group_pword = sha256(pword.encode()).hexdigest()
+            group_id = self.db.group_add(group_name, group_pword)
+
+            secret = SECRETKEY + str(group_id)
+            group_hashkey = sha256(secret.encode()).hexdigest()
+            self.db.group_set_hashkey(group_id, group_hashkey)
+
             self.db.chat_link(group_id, chat_id)
             await self.send_message(messenger_id, chat_id_in_messenger, f"готово, теперь в другом чате используйте\n"
                                                                         f"/link {group_id} {pword}\n"
-                                                                        f"чтобы подключить его к группе \"{group_name}\"")
+                                                                        f"чтобы подключить его к группе \"{group_name}\"\n"
+                                                                        f"читайте подключённые чаты через сайт, ваш ключ:\n"
+                                                                        f"{group_hashkey}")
 
 
         ### логика подключения чата к группе
@@ -139,7 +153,7 @@ class Multibot:
             pword = split[2]
             hashkey = sha256(pword.encode()).hexdigest()
 
-            if self.db.group_check_hashkey(group_id,hashkey):
+            if self.db.group_check_pword(group_id, hashkey):
                 self.db.chat_link(group_id, chat_id)
                 group_name = self.db.group_get_name(group_id)
                 await self.send_message(messenger_id, chat_id_in_messenger,f"теперь вы в группе {group_name}")
@@ -160,7 +174,7 @@ class Multibot:
         elif cmd == "/share":
             if self.db.chat_has_group(chat_id):
                 group_id = self.db.chat_get_group_id(chat_id)
-                t = text.removeprefix("/share")
+                t = f"рассылка от {fromuser}:" + text.removeprefix("/share")
                 await self.share(chat_id, group_id, t)
                 return
 
