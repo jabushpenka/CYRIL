@@ -30,4 +30,4 @@ async def run():
         # запуск
         return await multibot.run_polling()
     else:
-        return '-Мультибот, где ты был?\n-Бегал.'
+        return '-Мультибот, где ты был?     -Бегал.'
