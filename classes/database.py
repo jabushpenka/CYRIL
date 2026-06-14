@@ -6,7 +6,6 @@ load_dotenv()
 
 import psycopg2
 
-
 # noinspection SpellCheckingInspection
 class CyrilDB:
     def __init__(self):
@@ -93,6 +92,7 @@ class CyrilDB:
             except Exception as e:
                 print(e)
                 return list()
+
 
     def chat_link(self, group_id: int, chat_id: int) -> bool:
         """Присоединяем чат к группе"""
@@ -261,6 +261,19 @@ class CyrilDB:
         with self.conn.cursor() as cur:
             try:
                 cur.execute(f"SELECT * FROM {table} OFFSET %s LIMIT %s;", (skip, limit))
+                result = cur.fetchall()
+                return result
+            except Exception as e:
+                print(e)
+                return list()
+
+    def digest(self, chat_id: int) -> list:
+        """Получаем из чата сообщения"""
+        with self.conn.cursor() as cur:
+            try:
+                cur.execute(f"SELECT fromuser, text FROM messages WHERE chat_id = %s AND "
+                            f"date > CURRENT_DATE - INTERVAL '1 day'",
+                            (chat_id,))
                 result = cur.fetchall()
                 return result
             except Exception as e:
