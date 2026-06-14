@@ -86,7 +86,7 @@ class CyrilDB:
         with self.conn.cursor() as cur:
             try:
                 cur.execute(f"SELECT message_id_in_chat,text,date,fromuser FROM messages WHERE chat_id = %s"
-                            f"ORDER BY date DESC OFFSET %s LIMIT %s;",
+                            f" ORDER BY date DESC OFFSET %s LIMIT %s;",
                             (chat_id, skip, limit))
                 result = cur.fetchall()
                 return result
