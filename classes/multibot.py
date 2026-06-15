@@ -3,22 +3,32 @@ import datetime
 import json
 from hashlib import sha256
 
+import os
+from dotenv import load_dotenv
+load_dotenv()
+SECRETKEY = os.getenv("SECRETKEY")
+
 from classes.MyUpdate import MyUpdate
 from classes.database import CyrilDB
 from classes.connections import ConnectionManager
+from classes.summarizer import Summarizer
 from parts.max_part import MAX
 from parts.vk_part import VK
 
 # мастер-класс, реализующий логику (универсальную для всех ботов)
 class Multibot:
     def __init__(self):
-        self.db = CyrilDB()
+        self.db : CyrilDB = CyrilDB()
         self.manager : ConnectionManager = ConnectionManager()
+        self.summarizer : Summarizer = Summarizer()
         self.maxBot : MAX = None
         self.vkBot : VK = None
         self.running : bool = False
 
-    def add_manager(self, manager : ConnectionManager):
+    def set_database(self, db : CyrilDB):
+        self.db = db
+
+    def set_manager(self, manager : ConnectionManager):
         self.manager = manager
 
     # указатель на бот (MAX)
@@ -78,34 +88,41 @@ class Multibot:
         if upd.text.startswith("/"):
             prefix = upd.text.split(' ')[0]
             await self.handle_command(prefix,upd)
+            return
 
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
         message_id_in_chat = upd.message_id_in_chat
+        text = upd.text
+        fromuser = upd.fromuser
 
-        self.db.message_add(chat_id, message_id_in_chat, upd.text)
+        self.db.message_add(chat_id, message_id_in_chat, text, fromuser)
 
-        # рассылка сообщений всем, у кого открыт сайт
-        group_id = self.db.chat_get_group_id(chat_id)
-        data = {"chat_id": chat_id, "text": upd.text, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-        await self.manager.broadcast(group_id, json.dumps(data))
-        return
+        # рассылка сообщения по группе (на веб)
+        if self.db.chat_has_group(chat_id):
+            group_id = self.db.chat_get_group_id(chat_id)
+            data = {"chat_id": chat_id, "text": text, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            await self.manager.broadcast(group_id, json.dumps(data))
+            return
 
     # обработчик команд, TODO: (слишком огромный, реализовать через декораторы)
     async def handle_command(self, cmd: str, upd : MyUpdate):
         messenger_id = upd.messenger_id
         chat_id_in_messenger = upd.chat_id_in_messenger
         text = upd.text
+        fromuser = upd.fromuser
 
         chat_id = self.db.chat_get_id(messenger_id, chat_id_in_messenger)
 
         split = text.split()
 
-        # логика создания группы
+
+        ### логика создания группы
         if cmd == "/group":
             if self.db.chat_has_group(chat_id):
                 group_id = self.db.chat_get_group_id(chat_id)
                 group_name = self.db.group_get_name(group_id)
-                await self.send_message(messenger_id,chat_id_in_messenger,f"чат уже в группе {group_name}")
+                group_id = self.db.chat_get_group_id(chat_id)
+                await self.send_message(messenger_id, chat_id_in_messenger,f"чат уже в группе {group_id} - {group_name}")
                 return
 
             if len(split) != 3:
@@ -114,15 +131,22 @@ class Multibot:
 
             group_name = split[1]
             pword = split[2]
-            group_hashkey = sha256(pword.encode()).hexdigest()
-            group_id = self.db.group_add(group_name, group_hashkey)
+            group_pword = sha256(pword.encode()).hexdigest()
+            group_id = self.db.group_add(group_name, group_pword)
+
+            secret = SECRETKEY + str(group_id)
+            group_hashkey = sha256(secret.encode()).hexdigest()
+            self.db.group_set_hashkey(group_id, group_hashkey)
+
             self.db.chat_link(group_id, chat_id)
             await self.send_message(messenger_id, chat_id_in_messenger, f"готово, теперь в другом чате используйте\n"
                                                                         f"/link {group_id} {pword}\n"
-                                                                        f"чтобы подключить его к группе \"{group_name}\"")
+                                                                        f"чтобы подключить его к группе \"{group_name}\"\n"
+                                                                        f"читайте подключённые чаты через сайт, ваш ключ:\n"
+                                                                        f"{group_hashkey}")
 
 
-        # логика подключения чата к группе
+        ### логика подключения чата к группе
         elif cmd == "/link":
             if len(split) != 3:
                 await self.send_message(messenger_id,chat_id_in_messenger,"формат /link [ID] [пароль]")
@@ -132,7 +156,7 @@ class Multibot:
             pword = split[2]
             hashkey = sha256(pword.encode()).hexdigest()
 
-            if self.db.group_check_hashkey(group_id,hashkey):
+            if self.db.group_check_pword(group_id, hashkey):
                 self.db.chat_link(group_id, chat_id)
                 group_name = self.db.group_get_name(group_id)
                 await self.send_message(messenger_id, chat_id_in_messenger,f"теперь вы в группе {group_name}")
@@ -142,17 +166,25 @@ class Multibot:
 
         # логика отключения чата от группы
         elif cmd == "/unlink":
+            if not self.db.chat_has_group(chat_id):
+                await self.send_message(messenger_id, chat_id_in_messenger,f"чат не в группе")
+                return
             self.db.chat_unlink(chat_id)
-            await self.send_message(messenger_id, chat_id_in_messenger, f"теперь вы не в группе")
+            await self.send_message(messenger_id, chat_id_in_messenger, f"теперь чат не в группе")
 
 
         # логика рассылки сообщений (НА ВСЕ МЕССЕНДЖЕРЫ!!! 🥳🥳🥳)
         elif cmd == "/share":
             if self.db.chat_has_group(chat_id):
                 group_id = self.db.chat_get_group_id(chat_id)
-                t = text.removeprefix("/share")
+                t = f"рассылка от {fromuser}:" + text.removeprefix("/share")
                 await self.share(chat_id, group_id, t)
                 return
+
+
+        elif cmd == "/summarize":
+            summary = self.summarize(chat_id)
+            await self.send_message(messenger_id, chat_id_in_messenger, summary)
 
 
     # обработчик рассылки сообщений
@@ -171,3 +203,13 @@ class Multibot:
             elif messenger_id == 2:
                 await self.vkBot.send_message(chat_id_in_messenger, message)
         return
+
+    def summarize(self, chat_id : int):
+        raw = self.db.digest(chat_id)
+
+        messages : list[str] = []
+        for msg in raw:
+            messages.append(f"{msg[0]}: {msg[1]}")
+
+        daily = self.summarizer.summarize_to_single_sentence(messages)
+        return daily

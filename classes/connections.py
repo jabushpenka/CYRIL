@@ -5,11 +5,11 @@ class Connection:
         self.websocket = websocket
         self.groups : list[int] = []
 
-    def add(self, group_id : int = 0):
+    def add(self, group_id : int):
         if not group_id in self.groups:
             self.groups.append(group_id)
 
-    def rem(self, group_id : int = 0):
+    def rem(self, group_id : int):
         self.groups.remove(group_id)
 
 class ConnectionManager:
@@ -39,4 +39,4 @@ class ConnectionManager:
     async def broadcast(self, group_id: int, message: str):
         for connection in self.active_connections:
             if group_id in connection.groups:
-                await connection.websocket.send_json(message)
+                await connection.websocket.send(message)
