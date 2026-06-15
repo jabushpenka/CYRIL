@@ -11,9 +11,9 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[  # потом поменять на домен
-        "http://localhost:5173",
-        "http://127.18.0.1:5173",
-        "http://130.49.148.168:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
+        "http://92.63.102.203:5174",
     ],
     allow_credentials=True,
     allow_methods=["*"],  # POST, GET, PUT и т.д.
@@ -165,11 +165,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
 ############ НЕ трогать
 
-import htmltest
-from fastapi.responses import HTMLResponse
-@app.get("/test")
-async def get():
-    return HTMLResponse(htmltest.html)
+# import htmltest
+# from fastapi.responses import HTMLResponse
+# @app.get("/test")
+# async def get():
+#     return HTMLResponse(htmltest.html)
 
 from run_multibot import run
 @app.get('/',include_in_schema=False)
