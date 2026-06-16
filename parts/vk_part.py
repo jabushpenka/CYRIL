@@ -1,5 +1,5 @@
 from vkbottle.bot import Bot
-
+import json
 from classes.MyUpdate import MyUpdate
 
 # интерфейс позволяющий взаимодействовать с ботом (VK) из мастер-класса
@@ -25,7 +25,6 @@ class VK:
 
                     users_info = await self.bot.api.users.get(user_ids=update['object']['message']['from_id'])
                     fromuser = users_info[0].first_name
-                    #print("vk: ",chat_id,text)
                     result.append(MyUpdate(self.messenger_id, chat_id_in_messenger, message_id_in_chat, text, fromuser))
 
             return result

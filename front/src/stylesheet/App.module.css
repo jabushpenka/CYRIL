@@ -5,6 +5,10 @@
   src: url(../fonts/Montserrat-VariableFont_wght.ttf) format('truetype');
 }
 
+*{
+  font-family: 'Montserrat', sans-serif;
+}
+
 :local body {
   margin: 0;
   padding: 0;
@@ -25,17 +29,155 @@
 .folderSidebar {
   max-width: 300px;
   min-width: 120px;
-  width: 10vw;
-  background-color: #172a3d;
+  position: relative;
+  width: 15vw;
+  background-color: #1F3952;
+  display: flex;
+  overflow-y: auto;
+  flex-direction: column;
+}
+
+.groupsHeader{
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background-color: #4D728F;
+  z-index: 20;
+}
+
+.groupsHeader > button {
+  height: 2em;
+  width: 2em;
+  border-radius: 999px;
+  border: none;
+  font-size: 20px;
+  align-self: center;
+  background-color: #80A1BD;
+  color: #305675;
+  font-weight: 700;
+}
+.groupsHeader > button:hover{
+  outline: 2px solid #e8e8e8;
+}
+
+.groupActionOverlay {
+  width: 100%;
+  background-color: #7b9cb5; /* Светло-синий цвет фона из твоего макета Frame 13 */
+  display: flex;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 24px;
+  gap: 16px;
+  z-index: 10; /* Чтобы перекрывать элементы списка */
+}
+
+.actionButton {
+  width: 85%;
+  padding: 12px 16px;
+  background-color: #1F3952; /* Темный цвет кнопок */
+  color: #ffffff;
+  border: none;
+  border-radius: 12px; /* Закругления как на макете */
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s;
+}
+.actionButton:hover {
+  background-color: #1f3d55;
+  outline: 2px solid #d3d3d3;
+}
+
+/* Контейнер для выравнивания стрелки назад и заголовка */
+.headerBackContainer {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  justify-content: left;
+  gap: 20px;
+  padding-left: 12px;
+  cursor: pointer;
+}
+
+/* Иконка стрелочки назад */
+.backArrow {
+  font-size: 20px;
+  font-weight: bold;
+  color: #ffffff;
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+.headerBackContainer:hover .backArrow {
+  transform: translateX(-2px); /* Легкий интерактивный сдвиг при наведении */
+}
+
+/* Общий внутренний контейнер для элементов экранов оверлея */
+.menuStageContainer {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: 10px;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: center;
+  gap: 16px;
+}
+
+/* Текстовая подсказка (Введите ID...) */
+.inputLabel {
+  color: #1F3952; /* Темно-синий/серый цвет текста из макета */
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  max-width: 80%;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+/* Стилизация поля ввода ID */
+.groupIdInput {
+  width: 80%;
+  height: 3em;
+  padding: 0px 8px;
+  background-color: #305675; /* Цвет фона инпута */
+  color: #ffffff;
+  border: 2px solid #1F3952;
+  border-radius: 14px;
+  font-size: 16px;
+  outline: none;
+  font-family: 'Montserrat';
+}
+
+.groupIdInput::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Стили для будущей ошибки */
+.errorText {
+  color: #1a3144;
+  font-size: 16px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 1.3;
+  margin-top: 10px;
+}
+
+.sidebarContent{
+  display: flex;
+  position: relative;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
 }
 
 .folderItem {
   padding: 20px 10px;
-  font-size: 13px;
+  font-size: 20px;
   text-align: center;
   color: rgba(255, 255, 255, 0.6);
   cursor: pointer;
@@ -56,15 +198,61 @@
   min-width: 20vw;
   background-color: #497194;
   display: flex;
+  overflow-y: auto;
+  position: relative;
   flex-direction: column;
-  gap: 12px;
-  padding: 15px 12px;
+}
+
+.chatsHeader {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  position: relative;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background-color: #1F3952;
+  z-index: 20;
+}
+
+.chatsHeader > h3 {
+  margin-left: 8px;
+}
+
+.chatsHeader > button {
+  height: 2em;
+  width: 2em;
+  border-radius: 999px;
+  border: none;
+  font-size: 20px;
+  align-self: center;
+  background-color: #305675;
+  color: #80A1BD;
+  font-weight: 700;
+}
+.chatsHeader > button:hover{
+  outline: 2px solid #e8e8e8;
+}
+
+.chatActionOverlay {
+  background-color: #1F3952; /* Светло-синий цвет фона из твоего макета Frame 13 */
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  align-items: center;
+  gap: 16px;
+  z-index: 10; /* Чтобы перекрывать элементы списка */
+}
+
+.emptyText {
+  text-align: center;
+  margin: 16px;
 }
 
 .chatItem {
   display: flex;
   align-items: center;
   padding: 12px 16px;
+  margin: 8px 16px 16px 16px;
   background-color: #2c4a66;
   border-radius: 14px;
   cursor: pointer;
@@ -180,6 +368,11 @@
   line-height: 1.4;
   white-space: pre-line;
   color: #ffffff;
+}
+
+.messageTime {
+  text-align: right;
+  font-size:14px;
 }
 
 /* Нижняя панель ввода */

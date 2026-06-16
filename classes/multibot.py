@@ -100,7 +100,7 @@ class Multibot:
         # рассылка сообщения по группе (на веб)
         if self.db.chat_has_group(chat_id):
             group_id = self.db.chat_get_group_id(chat_id)
-            data = {"chat_id": chat_id, "text": text, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+            data = {"chat_id": chat_id, "text": text, "message_id_in_chat": message_id_in_chat, "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "fromuser": fromuser}
             await self.manager.broadcast(group_id, json.dumps(data))
             return
 

@@ -39,4 +39,7 @@ class ConnectionManager:
     async def broadcast(self, group_id: int, message: str):
         for connection in self.active_connections:
             if group_id in connection.groups:
-                await connection.websocket.send(message)
+                try:
+                    await connection.websocket.send_text(message)
+                except Exception as e:
+                    print("send failed:", e)
